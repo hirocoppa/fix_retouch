@@ -1,3 +1,12 @@
+## GitHub Pagesで無料公開（採用する方式）
+
+1. GitHubの `hirocoppa/fix_retouch` → **Settings → General → Danger Zone → Change repository visibility** から **Public** に変更（コミット履歴も公開されます）。
+2. **Settings → Pages → Build and deployment** で Source を **GitHub Actions** に設定。
+3. **Actions** タブから **Deploy static app to GitHub Pages** を実行するか、`main` に更新を反映すると自動デプロイされます。
+4. 公開に成功すると `https://hirocoppa.github.io/fix_retouch/` からアプリを開けます。公開完了まではこのURLは利用できません。
+
+この方式では動画や画像はブラウザ内で処理し、ChatGPTとの画像受け渡しは手動です。**全フレームのSwitchXマスクMP4自動追跡はまだGitHub Pagesでは利用できません**（サーバー版のPython/FFmpegが必要）。静止マスクPNGと個別プロンプトは利用できます。認証なしのPublicサイトとなるので、アクセス制限はありません。
+
 # fix_retouch
 
 RUNWAY / SwitchX 向け動画レタッチ補助アプリです。元動画の1フレームからOpenAI画像編集による修正済みPNGを作り、RUNWAY用・SwitchX用の個別の英語プロンプトと、SwitchX用のフレーム追跡マスク動画（MP4）を出力します。
@@ -68,7 +77,7 @@ Renderの構成はFreeプラン（月額0円）です。OpenAI APIの画像編�
 
 ## 完全無料の静的Web版（Cloudflare Pages）
 
-**推奨公開先: Cloudflare Pages**。プライベートGitHubリポジトリを維持しつつ、Cloudflareの無料枠で静的Webアプリを公開できます。Render/Dockerサーバーの起動は不要です。
+**代替案: Cloudflare Pages**。プライベートGitHubリポジトリを維持しつつ、Cloudflareの無料枠で静的Webアプリを公開できます。Render/Dockerサーバーの起動は不要です。
 
 1. [Cloudflare Dashboard](https://dash.cloudflare.com/) に無料アカウントでログインします。
 2. **Workers & Pages → Create → Pages → Connect to Git** で GitHub の `hirocoppa/fix_retouch` を選びます。
