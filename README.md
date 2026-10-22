@@ -65,3 +65,18 @@ Renderの構成はFreeプラン（月額0円）です。OpenAI APIの画像編�
 アプリ側では画像AIのAPIを呼び出さず、トリミング済みの赤印PNGと専用指示文を生成します。ChatGPTの画面に手動で渡して編集した画像を、ドラッグ＆ドロップ・ファイル選択・クリップボード貼り付けでアプリに戻せます。トリミング元の座標を保持し、赤印部分のみを元の解像度の画像へ合成します。ChatGPTによって出力サイズが変わった場合は、トリミングサイズにリサイズしてから合成するため、生成部分の画質・質感が一致するとは限りません。未指定部分は元のピクセルを保持します。
 
 現在のサイトには開発用の /api/edit が残っていますが、通常の操作画面からは利用しません。完全無料のサイト公開を目指す場合、SwitchX用のサーバー側マスク追跡は別途ブラウザ内実装が必要です。
+
+## 完全無料の静的Web版（Cloudflare Pages）
+
+**推奨公開先: Cloudflare Pages**。プライベートGitHubリポジトリを維持しつつ、Cloudflareの無料枠で静的Webアプリを公開できます。Render/Dockerサーバーの起動は不要です。
+
+1. [Cloudflare Dashboard](https://dash.cloudflare.com/) に無料アカウントでログインします。
+2. **Workers & Pages → Create → Pages → Connect to Git** で GitHub の `hirocoppa/fix_retouch` を選びます。
+3. Production branch: `main`。Framework preset: `None`。Build command: **空欄**。Build output directory: **`public`** とします。
+4. 保存してデプロイすると `https://(プロジェクト名).pages.dev` のURLが表示されます。このURLで、動画の取り込み、トリミング、赤い印、ChatGPTへのコピー/保存と手動の画像戻し、元解像度合成、パカパカ比較、静止マスクPNG・両プロンプトの生成ができます。
+
+重要: Web版の `/api/edit` は使用しません。ChatGPT Plusの画面で画像を手動編集し、結果をWeb版に戻します。Cloudflare Pages公開ではGitHubのコードはPrivateのままですが、発行されるWebサイト自体には別途アクセス制御を設定しない限り第三者がアクセスできるため、機密の映像素材の取り扱いに注意してください。静的Web版で動画ファイルを選んでもサーバーにはアップロードしません。
+
+**未対応:** 全フレームの動体追跡マスクMP4生成。既存の実装はPython/FFmpegが必要なため、この無料静的Web版では使えません。表示されるボタンからは処理を呼び出さず、未対応メッセージを表示します。1枚の白黒マスクPNGは出力できます。
+
+この設定をGitHubへ反映してもCloudflareアカウント側での初回接続は自動ではできません。初回接続後はGitHub更新の自動デプロイが可能です。
