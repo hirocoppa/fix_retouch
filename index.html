@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><title>fix_retouch</title>
+<style>
+:root{font-family:system-ui,-apple-system,sans-serif;color:#f1f3f8;background:#10131a}*{box-sizing:border-box}body{margin:0}main{max-width:1200px;margin:auto;padding:20px}h1{margin:0;font-size:24px}h2{font-size:17px;margin:0 0 14px}.muted,small{color:#b3bace}.grid{display:grid;grid-template-columns:2fr 1fr;gap:18px}.panel{background:#1b2230;border:1px solid #354055;border-radius:14px;padding:16px;margin:15px 0}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}button,select,input,textarea{font:inherit}button{padding:9px 12px;border:1px solid #546078;border-radius:8px;background:#2c3750;color:#fff;cursor:pointer}button:disabled{opacity:.5;cursor:not-allowed}.primary{background:#6754d8}.active{background:#a83b49}textarea{width:100%;background:#0f1521;color:white;border:1px solid #46516b;border-radius:8px;padding:10px;min-height:140px;resize:vertical}input[type=range]{width:100%}input[type=file]{max-width:100%}.canvasWrap{position:relative;display:inline-block;max-width:100%;line-height:0}.canvasWrap canvas{display:block;max-width:100%;max-height:65vh;width:auto;height:auto}.canvasWrap #paint{position:absolute;inset:0;touch-action:none}.viewer{text-align:center;background:#090d14;border-radius:10px;padding:10px;min-height:120px}.preview{width:100%;max-height:350px;object-fit:contain;background:#06090f;border-radius:8px}#status{color:#a1e3b8;white-space:pre-wrap}.notice{font-size:13px;line-height:1.6;color:#c2c9d8}@media(max-width:850px){.grid{grid-template-columns:1fr}main{padding:10px}}
+</style></head><body><main>
+<header><h1>fix_retouch <small style="font-size:12px;color:#abf0c2">v1.2.2</small></h1><small>RUNWAY / SwitchX リファレンス作成・フレームマスク追跡</small></header>
+<div class="grid"><section>
+<div class="panel"><h2>1. 動画・フレーム選択</h2><input id="file" type="file" accept="video/*"><video id="video" class="preview" controls playsinline style="display:none"></video><div class="row"><span id="time">00:00.000</span><span id="resolution" class="muted"></span></div><input id="seek" type="range" min="0" max="1000" value="0" disabled><div class="row"><button id="capture" disabled>このフレームを取り込む</button><button id="original" disabled>元フレームPNG</button></div></div>
+<div class="panel"><h2>2. 先にトリミング → 赤い範囲を指定</h2><div class="row"><button id="cropTool" class="active">トリミング範囲を選択</button><button id="cropConfirm" disabled>この範囲にトリミング</button><button id="cropReset" disabled>トリミングをやり直す</button></div><p id="cropInfo" class="notice">取り込み後、画像をドラッグしてトリミング範囲を選び、確定してください。</p><div class="row"><button id="brush" disabled>赤ブラシ</button><button id="rect" disabled>赤い四角（枠線のみ）</button><label>線の太さ <input id="size" type="number" min="1" max="300" value="30" style="width:70px"></label><button id="undo">戻す</button><button id="clear">クリア</button></div><p class="notice">トリミングを確定してから赤く指定します。最終PNGは元フレームの解像度に戻します。</p><div class="viewer"><div class="canvasWrap"><canvas id="frame"></canvas><canvas id="paint"></canvas></div></div></div>
+<div class="panel"><h2>3. 修正PNGと比較</h2><div class="row"><button id="viewOriginal">元画像</button><button id="viewEdited">修正後</button><button id="blink">パカパカ開始</button><label>間隔<select id="speed"><option value="300">0.3秒</option><option value="500" selected>0.5秒</option><option value="1000">1秒</option></select></label></div><img id="comparison" class="preview" alt="比較" style="display:none"><p class="notice">比較は元画像と修正PNGを同じ位置で切り替えます。</p><button id="download" disabled>修正済みPNGを保存</button></div>
+<div class="panel"><h2>4. SwitchXマスク</h2><p class="notice">黒＝生成部分、白＝維持。マスクは元動画の解像度で作成します。</p><canvas id="maskPreview" style="display:block;max-width:100%;max-height:250px;background:white"></canvas><div class="row"><button id="maskExport" disabled>マスクPNG保存</button><button id="maskVideoExport" disabled>全フレームマスクMP4生成</button></div><p id="maskVideoStatus" class="notice"></p><video id="maskVideoPreview" class="preview" controls style="display:none"></video><a id="maskDownload" style="display:none;color:#c7bdff" download="switchx_mask_video.mp4">マスク動画をダウンロード</a></div>
+</section><aside>
+<div class="panel"><h2>ChatGPTへ渡す・戻す</h2><div class="row"><button id="remove" class="active">消す</button><button id="change">文章で変更</button></div><p><textarea id="instruction" placeholder="変更内容を入力" disabled></textarea></p><p class="notice">トリミング後に描いた赤い印と文章をChatGPTへ渡し、修正された画像をここに戻します。OpenAI APIキーは不要です。</p>
+<div class="row"><button id="savePair" class="primary" disabled>元画像＋赤印画像の2枚を一括保存</button><button id="changeSaveFolder">保存先を変更</button></div><p id="saveFolderLabel" class="notice">保存先: 未選択（初回保存時に選択）</p><div class="row"><button id="copyMarked" disabled>赤印画像をコピー</button><button id="saveMarked" disabled>赤印画像PNG保存</button><button id="copyGPT" disabled>ChatGPT指示文をコピー</button></div>
+<div class="row"><button id="openGPT">ChatGPTを開く ↗</button></div>
+<label for="chatPrompt">ChatGPTに送る指示文</label><textarea id="chatPrompt" readonly style="min-height:195px"></textarea>
+<div id="dropReturned" tabindex="0" role="button" style="margin-top:14px;border:2px dashed #828ca7;border-radius:12px;padding:20px;text-align:center;cursor:pointer">
+<strong>修正済み画像をここにドラッグ＆ドロップ</strong><p class="notice">またはクリックして画像を選択。コピーした画像を ⌘V / Ctrl+V でも貼り付けできます。</p>
+<input id="returnedFile" type="file" accept="image/png,image/jpeg,image/webp" style="display:none">
+</div><p id="status" class="notice"></p></div>
+<div class="panel"><h2>RUNWAY用プロンプト</h2><textarea id="runwayPrompt"></textarea><div class="row"><button id="copyRunway">コピー</button><button id="saveRunway">TXT保存</button></div></div>
+<div class="panel"><h2>SwitchX用プロンプト</h2><textarea id="switchPrompt"></textarea><div class="row"><button id="copySwitch">コピー</button><button id="saveSwitch">TXT保存</button><button id="saveBoth">両方をTXT保存</button></div></div>
+</aside></div></main>
+<script>
+const $=id=>document.getElementById(id), video=$('video'),frame=$('frame'),paint=$('paint'),ctx=frame.getContext('2d'),pctx=paint.getContext('2d');
+let videoURL,source,edited,file,maskOps=[],drawMode='brush',editMode='remove',drag=false,active=null,blinkTimer=null,currentTime=0,crop=null,cropDraft=null,fullWidth=0,fullHeight=0,cropReady=false;
+const status=s=>$('status').textContent=s;
+const format=n=>{const m=Math.floor(n/60),s=Math.floor(n%60),ms=Math.round((n%1)*1000);return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')+'.'+String(ms).padStart(3,'0')};
+function save(uri,name){const a=document.createElement('a');a.href=uri;a.download=name;document.body.append(a);a.click();a.remove()}
+function saveText(s,name){const uri=URL.createObjectURL(new Blob([s],{type:'text/plain;charset=utf-8'}));save(uri,name);setTimeout(()=>URL.revokeObjectURL(uri),2000)}
+async function blob(uri){return await(await fetch(uri)).blob()}
+function reset(){source=null;edited=null;maskOps=[];setRoundtripEnabled(false);crop=null;cropDraft=null;cropReady=false;fullWidth=fullHeight=0;$('cropConfirm').disabled=true;$('cropReset').disabled=true;$('brush').disabled=true;$('rect').disabled=true;$('cropTool').classList.add('active');frame.width=paint.width=0;frame.height=paint.height=0;$('download').disabled=true;$('maskExport').disabled=true;$('maskVideoExport').disabled=true;$('comparison').style.display='none';renderMask()}
+$('file').onchange=e=>{file=e.target.files[0];if(!file)return;if(videoURL)URL.revokeObjectURL(videoURL);videoURL=URL.createObjectURL(file);video.src=videoURL;video.style.display='block';video.load();reset()};
+video.onloadedmetadata=()=>{$('resolution').textContent=video.videoWidth+'×'+video.videoHeight;$('seek').disabled=false;$('capture').disabled=false;};
+video.ontimeupdate=video.onseeked=()=>{$('seek').value=video.duration?Math.round(video.currentTime/video.duration*1000):0;$('time').textContent=format(video.currentTime)};
+$('seek').oninput=()=>{if(video.duration)video.currentTime=video.duration*Number($('seek').value)/1000};
+function sizing(){if(!frame.width)return;const r=frame.getBoundingClientRect();paint.style.width=r.width+'px';paint.style.height=r.height+'px'}
+window.addEventListener('resize',sizing);
+function drawSourceCrop(){if(!source)return;const image=new Image();image.onload=()=>{const c=crop||{x:0,y:0,w:fullWidth,h:fullHeight};frame.width=paint.width=c.w;frame.height=paint.height=c.h;ctx.drawImage(image,c.x,c.y,c.w,c.h,0,0,c.w,c.h);renderMask();requestAnimationFrame(sizing)};image.src=source}
+function confirmCrop(){if(!cropDraft||cropDraft.w<2||cropDraft.h<2)return status('トリミング範囲を選んでください。');crop={...cropDraft};cropReady=true;cropDraft=null;maskOps=[];edited=null;setRoundtripEnabled(false);$('download').disabled=true;$('brush').disabled=false;$('rect').disabled=false;$('cropTool').classList.remove('active');$('cropConfirm').disabled=true;$('cropReset').disabled=false;$('cropInfo').textContent='トリミング済み: '+crop.w+' × '+crop.h+' px。赤いブラシ・四角で編集範囲を指定してください。';drawSourceCrop();status('トリミングを確定しました。赤い印を描いてください。')}
+$('capture').onclick=()=>{const w=video.videoWidth,h=video.videoHeight;if(!w||!h)return;currentTime=video.currentTime;const temp=document.createElement('canvas');temp.width=w;temp.height=h;temp.getContext('2d').drawImage(video,0,0,w,h);source=temp.toDataURL('image/png');fullWidth=w;fullHeight=h;crop=null;cropDraft=null;cropReady=false;maskOps=[];edited=null;setRoundtripEnabled(false);$('cropConfirm').disabled=true;$('cropReset').disabled=false;$('brush').disabled=true;$('rect').disabled=true;$('original').disabled=false;$('maskExport').disabled=true;$('maskVideoExport').disabled=true;$('download').disabled=true;$('cropTool').classList.add('active');$('cropInfo').textContent='元フレームから修正したい周辺をドラッグしてトリミングしてください。';drawSourceCrop();makePrompts();status('トリミング範囲を選択してください。')};
+$('cropConfirm').onclick=confirmCrop;
+$('cropReset').onclick=()=>{crop=null;cropDraft=null;cropReady=false;maskOps=[];edited=null;setRoundtripEnabled(false);$('download').disabled=true;$('maskExport').disabled=true;$('maskVideoExport').disabled=true;$('brush').disabled=true;$('rect').disabled=true;$('cropTool').classList.add('active');$('cropInfo').textContent='元画像から範囲を選択し直してください。';drawSourceCrop()};
+$('cropTool').onclick=()=>{if(cropReady)$('cropReset').click()};
+
+function at(e){const r=paint.getBoundingClientRect();return{x:(e.clientX-r.left)*paint.width/r.width,y:(e.clientY-r.top)*paint.height/r.height}}
+function draw(c,op,color,outline=false){c.save();c.fillStyle=color;c.strokeStyle=color;c.lineWidth=op.width||30;c.lineCap='round';c.lineJoin='round';if(op.kind==='rect'){const x=Math.min(op.a.x,op.b.x),y=Math.min(op.a.y,op.b.y);if(outline){c.lineWidth=Math.max(2,Math.min(8,op.width||6));c.strokeRect(x,y,Math.abs(op.b.x-op.a.x),Math.abs(op.b.y-op.a.y))}else c.fillRect(x,y,Math.abs(op.b.x-op.a.x),Math.abs(op.b.y-op.a.y))}else{c.beginPath();c.moveTo(op.points[0].x,op.points[0].y);if(op.points.length===1)c.lineTo(op.points[0].x+.1,op.points[0].y+.1);else for(const p of op.points.slice(1))c.lineTo(p.x,p.y);c.stroke()}c.restore()}
+function renderMask(){pctx.clearRect(0,0,paint.width,paint.height);for(const op of maskOps)draw(pctx,op,'rgba(240,48,56,.72)',true);if(active)draw(pctx,active,'rgba(240,48,56,.72)',true);if(!cropReady&&cropDraft){pctx.save();pctx.strokeStyle='#ffdf64';pctx.lineWidth=Math.max(2,frame.width/800);pctx.setLineDash([12,8]);pctx.strokeRect(cropDraft.x,cropDraft.y,cropDraft.w,cropDraft.h);pctx.restore()}const mc=$('maskPreview');mc.width=fullWidth||1;mc.height=fullHeight||1;const m=mc.getContext('2d');m.fillStyle='white';m.fillRect(0,0,mc.width,mc.height);if(cropReady){m.save();m.translate(crop.x,crop.y);for(const op of maskOps)draw(m,op,'black');m.restore()}}
+paint.onpointerdown=e=>{if(!source)return;e.preventDefault();paint.setPointerCapture(e.pointerId);drag=true;const p=at(e);if(!cropReady){active={kind:'crop',a:p,b:p};return}active=drawMode==='rect'?{kind:'rect',a:p,b:p}:{kind:'brush',width:Number($('size').value),points:[p]};renderMask()};
+paint.onpointermove=e=>{if(!drag)return;const p=at(e);if(active.kind==='rect'||active.kind==='crop')active.b=p;else active.points.push(p);if(active.kind==='crop'){cropDraft={x:Math.max(0,Math.floor(Math.min(active.a.x,active.b.x))),y:Math.max(0,Math.floor(Math.min(active.a.y,active.b.y))),w:Math.min(fullWidth,Math.ceil(Math.max(active.a.x,active.b.x)))-Math.max(0,Math.floor(Math.min(active.a.x,active.b.x))),h:Math.min(fullHeight,Math.ceil(Math.max(active.a.y,active.b.y)))-Math.max(0,Math.floor(Math.min(active.a.y,active.b.y)))};$('cropConfirm').disabled=cropDraft.w<2||cropDraft.h<2;}renderMask()};
+paint.onpointerup=paint.onpointercancel=()=>{if(!drag)return;drag=false;if(active.kind==='crop'){active=null;renderMask();return}maskOps.push(active);active=null;setRoundtripEnabled(true);$('maskExport').disabled=false;$('maskVideoExport').disabled=false;renderMask()};
+$('brush').onclick=()=>{drawMode='brush';$('brush').classList.add('active');$('rect').classList.remove('active')};
+$('rect').onclick=()=>{drawMode='rect';$('rect').classList.add('active');$('brush').classList.remove('active')};
+$('undo').onclick=()=>{maskOps.pop();setRoundtripEnabled(maskOps.length>0);renderMask()};$('clear').onclick=()=>{maskOps=[];setRoundtripEnabled(false);renderMask()};
+$('original').onclick=()=>source&&save(source,'original.png');
+$('remove').onclick=()=>{editMode='remove';$('instruction').disabled=true;$('remove').classList.add('active');$('change').classList.remove('active');makePrompts();refreshChatText()};
+$('change').onclick=()=>{editMode='change';$('instruction').disabled=false;$('change').classList.add('active');$('remove').classList.remove('active');makePrompts();refreshChatText()};
+$('instruction').oninput=()=>{makePrompts();refreshChatText()};
+function alphaMask(){const c=document.createElement('canvas');c.width=frame.width;c.height=frame.height;const x=c.getContext('2d');for(const op of maskOps)draw(x,op,'#ff0000');return new Promise(resolve=>c.toBlob(resolve,'image/png'))}
+function blackWhiteMask(){return new Promise(resolve=>$('maskPreview').toBlob(resolve,'image/png'))}
+function setRoundtripEnabled(enabled){
+ for(const id of ['copyMarked','saveMarked','copyGPT','savePair'])$(id).disabled=!enabled;
+ if(!enabled){edited=null;$('download').disabled=true}
+}
+function markedCanvas(){
+ const c=document.createElement('canvas');c.width=frame.width;c.height=frame.height;
+ const x=c.getContext('2d');x.drawImage(frame,0,0);
+ for(const op of maskOps)draw(x,op,'rgba(240,48,56,.86)',true);
+ return c;
+}
+function canvasBlob(c){return new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(Error('PNGを作成できません。')),'image/png'))}
+
+const DB_NAME='fix_retouch_preferences', STORE='settings', FOLDER_KEY='chatgpt_directory';
+let savedDirectory=null;
+function database(){return new Promise((resolve,reject)=>{const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)})}
+async function getSetting(key){const db=await database();return await new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readonly'),r=tx.objectStore(STORE).get(key);r.onsuccess=()=>{resolve(r.result);db.close()};r.onerror=()=>{reject(r.error);db.close()}})}
+async function putSetting(key,value){const db=await database();return await new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put(value,key);tx.oncomplete=()=>{db.close();resolve()};tx.onerror=()=>{db.close();reject(tx.error)}})}
+function folderLabel(name){$('saveFolderLabel').textContent='保存先: '+(name||'未選択（初回保存時に選択）')}
+async function chooseDirectory(){if(!window.showDirectoryPicker)throw new Error('このブラウザでは保存先の指定に対応していません。Chrome / Edgeを使ってください。');const dir=await window.showDirectoryPicker({id:'fix-retouch-chatgpt',mode:'readwrite'});savedDirectory=dir;await putSetting(FOLDER_KEY,dir);folderLabel(dir.name);return dir}
+async function getWritableDirectory(){
+ let dir=savedDirectory;
+ if(!dir)return await chooseDirectory();
+ if(typeof dir.queryPermission!=='function')return await chooseDirectory();
+ let permission=await dir.queryPermission({mode:'readwrite'});
+ if(permission!=='granted')permission=await dir.requestPermission({mode:'readwrite'});
+ if(permission!=='granted')throw new Error('保存先への書き込みを許可してください。');
+ return dir
+}
+async function writePNG(dir,name,bytes){const handle=await dir.getFileHandle(name,{create:true}),writer=await handle.createWritable();try{await writer.write(bytes)}finally{await writer.close()}}
+async function saveChatPair(){
+ if(!cropReady||!maskOps.length)return status('トリミングと赤い印を先に確定してください。');
+ try{
+  // Choose the directory from a direct click before asynchronous image preparation.
+  const dir=await getWritableDirectory();
+  const original=await canvasBlob(frame),marked=await canvasBlob(markedCanvas());
+  const timestamp=format(currentTime).replace(':','-').replace('.','-');
+  const base='frame_'+timestamp;
+  await writePNG(dir,base+'_crop_original.png',original);
+  await writePNG(dir,base+'_crop_marked.png',marked);
+  status('2枚を「'+dir.name+'」に保存しました。元画像と赤印付き画像をChatGPTへ添付してください。');
+ }catch(error){if(error.name==='AbortError')return status('保存先の選択をキャンセルしました。');status('2枚の保存に失敗しました: '+error.message)}
+}
+$('savePair').onclick=saveChatPair;
+$('changeSaveFolder').onclick=async()=>{try{await chooseDirectory();status('保存先を変更しました。')}catch(e){if(e.name!=='AbortError')status('保存先を変更できません: '+e.message)}};
+(async()=>{try{savedDirectory=await getSetting(FOLDER_KEY);if(savedDirectory)folderLabel(savedDirectory.name)}catch(e){folderLabel(null)}})();
+
+function chatText(){
+ const directive=editMode==='remove'?'赤い印で示した部分だけを消し、そこに本来見える背景を自然に復元してください。':'赤い印で示した部分だけを次の指示どおりに変更してください：'+$('instruction').value.trim();
+ return '添付は元動画から切り出したトリミング画像です。赤い印は編集箇所を示すためのガイドです。\\n\\n'+directive+'\\n\\n赤い印そのものは完成画像に描かないでください。赤い印以外の場所の構図、色、明るさ、露出、コントラスト、影、遠近感、壁や床の質感を可能な限り保持してください。元動画全体ではなく、このトリミング画像と同じ構図の修正画像を1枚生成してください。文字や枠は追加せず、自然な写実画像として出力してください。';
+}
+function refreshChatText(){$('chatPrompt').value=chatText()}
+$('copyMarked').onclick=async()=>{try{if(!maskOps.length)return status('赤い範囲を描いてください。');if(!navigator.clipboard?.write||!window.ClipboardItem)throw Error('このブラウザでは画像コピーが使えません。PNG保存を使ってください。');const b=await canvasBlob(markedCanvas());await navigator.clipboard.write([new ClipboardItem({'image/png':b})]);status('赤印画像をコピーしました。ChatGPTで貼り付けできます。')}catch(e){status('画像コピー失敗: '+e.message)}};
+$('saveMarked').onclick=async()=>{if(!maskOps.length)return status('赤い範囲を描いてください。');const uri=URL.createObjectURL(await canvasBlob(markedCanvas()));save(uri,'for_chatgpt_marked_crop.png');setTimeout(()=>URL.revokeObjectURL(uri),5000)};
+$('copyGPT').onclick=async()=>{if(editMode==='change'&&!$('instruction').value.trim())return status('変更内容を入力してください。');try{await navigator.clipboard.writeText(chatText());status('ChatGPT用の指示文をコピーしました。')}catch(e){status('文章のコピーに失敗しました: '+e.message)}};
+$('openGPT').onclick=()=>window.open('https://chatgpt.com/','_blank','noopener,noreferrer');
+function imageFromFile(file){
+ return new Promise((resolve,reject)=>{const url=URL.createObjectURL(file);const img=new Image();img.onload=()=>{URL.revokeObjectURL(url);resolve(img)};img.onerror=()=>{URL.revokeObjectURL(url);reject(Error('画像を読み込めません。'))};img.src=url});
+}
+async function importReturned(file){
+ try{
+  if(!source||!cropReady||!maskOps.length)return status('先にフレームをトリミングして赤い印を描いてください。');
+  if(!file||!file.type.startsWith('image/'))return status('PNG、JPEG、WebP画像を選んでください。');
+  const returned=await imageFromFile(file);
+  if(returned.width!==crop.w||returned.height!==crop.h){
+   status('ChatGPT画像は '+returned.width+'×'+returned.height+' px。元のトリミング '+crop.w+'×'+crop.h+' px にリサイズして指定範囲だけ合成します。');
+  }
+  const image=document.createElement('canvas');image.width=crop.w;image.height=crop.h;
+  const ic=image.getContext('2d',{willReadFrequently:true});ic.drawImage(returned,0,0,crop.w,crop.h);
+  const generated=ic.getImageData(0,0,crop.w,crop.h);
+  const mask=document.createElement('canvas');mask.width=crop.w;mask.height=crop.h;const mc=mask.getContext('2d',{willReadFrequently:true});
+  for(const op of maskOps)draw(mc,op,'#ff0000');
+  const maskData=mc.getImageData(0,0,crop.w,crop.h).data;
+  const patch=ctx.getImageData(0,0,crop.w,crop.h);
+  for(let i=0;i<maskData.length;i+=4){
+   const blend=maskData[i+3]/255;
+   if(blend<=0)continue;
+   for(let k=0;k<3;k++)patch.data[i+k]=Math.round(patch.data[i+k]*(1-blend)+generated.data[i+k]*blend);
+  }
+  const full=document.createElement('canvas');full.width=fullWidth;full.height=fullHeight;
+  const originalImage=new Image();
+  originalImage.onload=()=>{
+   const c=full.getContext('2d');c.drawImage(originalImage,0,0);
+   const pc=document.createElement('canvas');pc.width=crop.w;pc.height=crop.h;
+   pc.getContext('2d').putImageData(patch,0,0);
+   c.drawImage(pc,crop.x,crop.y);
+   edited=full.toDataURL('image/png');$('download').disabled=false;showComparison('edited');
+   status('ChatGPT画像を取り込み、赤く指定した部分だけ元解像度に合成しました。パカパカ比較してください。');
+  };
+  originalImage.src=source;
+ }catch(e){status('画像の取り込みに失敗しました: '+e.message)}
+}
+$('returnedFile').onchange=e=>{const f=e.target.files?.[0];if(f)importReturned(f);e.target.value=''};
+const drop=$('dropReturned');
+drop.onclick=()=>$('returnedFile').click();
+drop.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('returnedFile').click()}};
+drop.ondragover=e=>{e.preventDefault();drop.style.borderColor='#b3a6ff'};
+drop.ondragleave=()=>drop.style.borderColor='#828ca7';
+drop.ondrop=e=>{e.preventDefault();drop.style.borderColor='#828ca7';if(e.dataTransfer.files?.[0])importReturned(e.dataTransfer.files[0])};
+document.addEventListener('paste',e=>{const item=[...(e.clipboardData?.items||[])].find(item=>item.type.startsWith('image/'));if(item&&cropReady&&maskOps.length){e.preventDefault();importReturned(item.getAsFile())}});
+
+function showComparison(which){const im=$('comparison');if(!source)return;im.src=which==='edited'&&edited?edited:source;im.style.display='block'}
+$('viewOriginal').onclick=()=>{clearInterval(blinkTimer);blinkTimer=null;$('blink').textContent='パカパカ開始';showComparison('original')};
+$('viewEdited').onclick=()=>{clearInterval(blinkTimer);blinkTimer=null;$('blink').textContent='パカパカ開始';showComparison('edited')};
+$('blink').onclick=()=>{if(blinkTimer){clearInterval(blinkTimer);blinkTimer=null;$('blink').textContent='パカパカ開始';return}if(!edited)return status('先にAI修正してください。');let toggled=false;blinkTimer=setInterval(()=>{toggled=!toggled;showComparison(toggled?'edited':'original')},Number($('speed').value));$('blink').textContent='停止'};
+$('download').onclick=()=>edited&&save(edited,'reference_edited.png');
+$('maskExport').onclick=async()=>{if(!maskOps.length)return status('赤い範囲を指定してください。');const uri=URL.createObjectURL(await blackWhiteMask());save(uri,'switchx_mask.png');setTimeout(()=>URL.revokeObjectURL(uri),2000)};
+$('maskVideoExport').onclick=async()=>{if(location.protocol==='https:'&&location.hostname!=='localhost'&&location.hostname!=='127.0.0.1'){return $('maskVideoStatus').textContent='無料Web版では全フレーム自動追跡は未対応です。現在は1フレームの白黒マスクPNGを保存できます。'}if(!maskOps.length)return status('赤い範囲を指定してください。');$('maskVideoExport').disabled=true;$('maskVideoStatus').textContent='マスク動画を作成しています…';try{const form=new FormData();form.append('video',file,file.name);form.append('mask',await blackWhiteMask(),'mask.png');form.append('time',String(currentTime));const r=await fetch('/api/track-mask',{method:'POST',body:form});const j=await r.json();if(!r.ok)throw Error(j.error||'生成に失敗しました');$('maskVideoPreview').src=j.video;$('maskVideoPreview').style.display='block';$('maskDownload').href=j.video;$('maskDownload').style.display='inline';$('maskVideoStatus').textContent=j.frames+' フレーム / 追跡警告 '+j.trackingWarnings+' フレーム。必ず全編を検査してください。'}catch(e){$('maskVideoStatus').textContent='エラー: '+e.message}finally{$('maskVideoExport').disabled=false}};
+function makePrompts(){const detail=editMode==='remove'?'Remove the specified object or visual detail and seamlessly reconstruct the original background.':($('instruction').value.trim()||'Apply only the change shown in the edited reference image.');const stable='Preserve the camera motion, original perspective, color, brightness, contrast, lighting, texture, timing and every unrelated object. Maintain the change continuously through every video frame, including the end. No flicker, reappearance, distortion, smearing, or additional edits.';$('runwayPrompt').value='Edit the original VIDEO according to the edited PNG reference frame.\n\n'+detail+'\n\n'+stable+'\n\nReference frame timestamp: '+format(currentTime)+'. Do not freeze the video.';$('switchPrompt').value='Use the ORIGINAL VIDEO, EDITED PNG as a guide, and the FULL-FRAME BLACK/WHITE MASK VIDEO. Black pixels indicate the region to regenerate; white pixels must be preserved.\n\n'+detail+'\n\nRegenerate exclusively inside the tracked black mask, following its movement across every frame. '+stable+'\n\nReference frame timestamp: '+format(currentTime)+'.'}
+$('copyRunway').onclick=()=>navigator.clipboard.writeText($('runwayPrompt').value);
+$('copySwitch').onclick=()=>navigator.clipboard.writeText($('switchPrompt').value);
+$('saveRunway').onclick=()=>saveText($('runwayPrompt').value,'runway_prompt.txt');
+$('saveSwitch').onclick=()=>saveText($('switchPrompt').value,'switchx_prompt.txt');
+$('saveBoth').onclick=()=>saveText('RUNWAY\n'+$('runwayPrompt').value+'\n\nSwitchX\n'+$('switchPrompt').value,'both_prompts.txt');
+makePrompts();refreshChatText();if(location.protocol==='https:'&&location.hostname!=='localhost'&&location.hostname!=='127.0.0.1'){$('maskVideoExport').title='全フレーム追跡は無料Web版未対応';$('maskVideoStatus').textContent='全フレーム自動追跡は開発中です。マスクPNGは使用可能です。'}
+</script></body></html>
