@@ -7,6 +7,32 @@ import os from 'node:os';
 import path from 'node:path';
 const app=express();
 const upload=multer({storage:multer.memoryStorage(),limits:{fileSize:150*1024*1024,files:3}});
+// Require an access password on cloud deployments to prevent unauthorized API usage.
+app.get('/health',(req,res)=>res.status(200).send('ok'));
+app.use((req,res,next)=>{
+ const configured=process.env.APP_ACCESS_PASSWORD;
+ if(!configured){
+   if(process.env.NODE_ENV==='production')return res.status(503).send('APP_ACCESS_PASSWORD is required in production.');
+   return next();
+ }
+ const header=req.headers.authorization||'';
+ if(header.startsWith('Basic ')){
+  try{
+   const pair=Buffer.from(header.slice(6),'base64').toString('utf8');
+   const password=pair.substring(pair.indexOf(':')+1);
+   const a=Buffer.from(password),b=Buffer.from(configured);
+   if(a.length===b.length && (awaitCompare(a,b)))return next();
+  }catch{}
+ }
+ res.set('WWW-Authenticate','Basic realm="fix_retouch", charset="UTF-8"');
+ res.status(401).send('Authentication required');
+});
+function awaitCompare(a,b){return requireSafeEqual(a,b)}
+function requireSafeEqual(a,b){
+ let diff=0;
+ for(let i=0;i<a.length;i++)diff|=a[i]^b[i];
+ return diff===0;
+}
 app.use(express.static('public'));
 const errResponse=(res,error,status=500)=>res.status(status).json({error:String(error?.message||error)});
 app.post('/api/edit',upload.fields([{name:'image',maxCount:1},{name:'mask',maxCount:1}]),async(req,res)=>{
