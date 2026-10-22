@@ -45,3 +45,17 @@ npm start
 ## 開発ステータス
 
 GitHubへのソース登録・読み戻し確認済み。今回登録した版を実動画・OpenAI APIで一通り動作検証する作業は未実施です。
+
+## URLで開くWebアプリとして公開（Render）
+
+このリポジトリの `Dockerfile` と `render.yaml` は、Node.js / Python / FFmpeg の実行環境をRenderで構築するための設定です。初回はRenderアカウントでのセットアップが必要です。
+
+1. [Render](https://dashboard.render.com/select-repo?type=blueprint) にログインし、GitHubのプライベートリポジトリ `hirocoppa/fix_retouch` を接続する。
+2. New → Blueprint からリポジトリを選び、`render.yaml` を適用する。
+3. Renderの環境変数 `OPENAI_API_KEY` にOpenAI APIキー、`APP_ACCESS_PASSWORD` に推測されにくいパスワードを登録する（GitHubには書き込まない）。
+4. Renderでデプロイに成功すると `https://<render-assigned-host>.onrender.com` のURLが発行される。URLを開くと認証ダイアログが出るので、ユーザー名には任意の文字（例: `user`）、パスワードには手順3のものを入力する。
+5. GitHubの `main` の変更はRender側で自動デプロイされる設定です。
+
+Renderのサーバー料金とOpenAI APIの従量課金は別です。動画は150 MB以下を想定し、長時間動画の処理はサーバーのメモリ・タイムアウト制限で失敗する場合があります。本番運用にはジョブキュー・外部ストレージ導入が望まれます。
+
+**GitHubへのコード登録だけでは公開URLは発行されません。Render側での初回接続・デプロイが必要です。**
