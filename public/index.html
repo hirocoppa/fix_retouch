@@ -11,7 +11,7 @@
 <div class="panel"><h2>4. SwitchXマスク</h2><p class="notice">黒＝生成部分、白＝維持。マスクは元動画の解像度で作成します。</p><canvas id="maskPreview" style="display:block;max-width:100%;max-height:250px;background:white"></canvas><div class="row"><button id="maskExport" disabled>マスクPNG保存</button><button id="maskVideoExport" disabled>全フレームマスクMP4生成</button></div><p id="maskVideoStatus" class="notice"></p><video id="maskVideoPreview" class="preview" controls style="display:none"></video><a id="maskDownload" style="display:none;color:#c7bdff" download="switchx_mask_video.mp4">マスク動画をダウンロード</a></div>
 </section><aside>
 <div class="panel"><h2>ChatGPTへ渡す・戻す</h2><div class="row"><button id="remove" class="active">消す</button><button id="change">文章で変更</button></div><p><textarea id="instruction" placeholder="変更内容を入力" disabled></textarea></p><p class="notice">トリミング後に描いた赤い印と文章をChatGPTへ渡し、修正された画像をここに戻します。OpenAI APIキーは不要です。</p>
-<div class="row"><button id="copyMarked" disabled>赤印画像をコピー</button><button id="saveMarked" disabled>赤印画像PNG保存</button><button id="copyGPT" disabled>ChatGPT指示文をコピー</button></div>
+<div class="row"><button id="savePair" class="primary" disabled>ChatGPT用画像2枚をまとめて保存</button><button id="changeSaveFolder">保存先を変更</button></div><p id="saveFolderLabel" class="notice">保存先: 未選択（初回保存時に選択）</p><div class="row"><button id="copyMarked" disabled>赤印画像をコピー</button><button id="saveMarked" disabled>赤印画像PNG保存</button><button id="copyGPT" disabled>ChatGPT指示文をコピー</button></div>
 <div class="row"><button id="openGPT">ChatGPTを開く ↗</button></div>
 <label for="chatPrompt">ChatGPTに送る指示文</label><textarea id="chatPrompt" readonly style="min-height:195px"></textarea>
 <div id="dropReturned" tabindex="0" role="button" style="margin-top:14px;border:2px dashed #828ca7;border-radius:12px;padding:20px;text-align:center;cursor:pointer">
@@ -44,8 +44,8 @@ $('cropReset').onclick=()=>{crop=null;cropDraft=null;cropReady=false;maskOps=[];
 $('cropTool').onclick=()=>{if(cropReady)$('cropReset').click()};
 
 function at(e){const r=paint.getBoundingClientRect();return{x:(e.clientX-r.left)*paint.width/r.width,y:(e.clientY-r.top)*paint.height/r.height}}
-function draw(c,op,color){c.save();c.fillStyle=color;c.strokeStyle=color;c.lineWidth=op.width||30;c.lineCap='round';c.lineJoin='round';if(op.kind==='rect'){const x=Math.min(op.a.x,op.b.x),y=Math.min(op.a.y,op.b.y);c.fillRect(x,y,Math.abs(op.b.x-op.a.x),Math.abs(op.b.y-op.a.y))}else{c.beginPath();c.moveTo(op.points[0].x,op.points[0].y);if(op.points.length===1)c.lineTo(op.points[0].x+.1,op.points[0].y+.1);else for(const p of op.points.slice(1))c.lineTo(p.x,p.y);c.stroke()}c.restore()}
-function renderMask(){pctx.clearRect(0,0,paint.width,paint.height);for(const op of maskOps)draw(pctx,op,'rgba(240,48,56,.72)');if(active)draw(pctx,active,'rgba(240,48,56,.72)');if(!cropReady&&cropDraft){pctx.save();pctx.strokeStyle='#ffdf64';pctx.lineWidth=Math.max(2,frame.width/800);pctx.setLineDash([12,8]);pctx.strokeRect(cropDraft.x,cropDraft.y,cropDraft.w,cropDraft.h);pctx.restore()}const mc=$('maskPreview');mc.width=fullWidth||1;mc.height=fullHeight||1;const m=mc.getContext('2d');m.fillStyle='white';m.fillRect(0,0,mc.width,mc.height);if(cropReady){m.save();m.translate(crop.x,crop.y);for(const op of maskOps)draw(m,op,'black');m.restore()}}
+function draw(c,op,color,outline=false){c.save();c.fillStyle=color;c.strokeStyle=color;c.lineWidth=op.width||30;c.lineCap='round';c.lineJoin='round';if(op.kind==='rect'){const x=Math.min(op.a.x,op.b.x),y=Math.min(op.a.y,op.b.y);if(outline){c.lineWidth=Math.max(2,Math.min(16,op.width||6));c.strokeRect(x,y,Math.abs(op.b.x-op.a.x),Math.abs(op.b.y-op.a.y))}else c.fillRect(x,y,Math.abs(op.b.x-op.a.x),Math.abs(op.b.y-op.a.y))}else{c.beginPath();c.moveTo(op.points[0].x,op.points[0].y);if(op.points.length===1)c.lineTo(op.points[0].x+.1,op.points[0].y+.1);else for(const p of op.points.slice(1))c.lineTo(p.x,p.y);c.stroke()}c.restore()}
+function renderMask(){pctx.clearRect(0,0,paint.width,paint.height);for(const op of maskOps)draw(pctx,op,'rgba(240,48,56,.72)',true);if(active)draw(pctx,active,'rgba(240,48,56,.72)',true);if(!cropReady&&cropDraft){pctx.save();pctx.strokeStyle='#ffdf64';pctx.lineWidth=Math.max(2,frame.width/800);pctx.setLineDash([12,8]);pctx.strokeRect(cropDraft.x,cropDraft.y,cropDraft.w,cropDraft.h);pctx.restore()}const mc=$('maskPreview');mc.width=fullWidth||1;mc.height=fullHeight||1;const m=mc.getContext('2d');m.fillStyle='white';m.fillRect(0,0,mc.width,mc.height);if(cropReady){m.save();m.translate(crop.x,crop.y);for(const op of maskOps)draw(m,op,'black');m.restore()}}
 paint.onpointerdown=e=>{if(!source)return;e.preventDefault();paint.setPointerCapture(e.pointerId);drag=true;const p=at(e);if(!cropReady){active={kind:'crop',a:p,b:p};return}active=drawMode==='rect'?{kind:'rect',a:p,b:p}:{kind:'brush',width:Number($('size').value),points:[p]};renderMask()};
 paint.onpointermove=e=>{if(!drag)return;const p=at(e);if(active.kind==='rect'||active.kind==='crop')active.b=p;else active.points.push(p);if(active.kind==='crop'){cropDraft={x:Math.max(0,Math.floor(Math.min(active.a.x,active.b.x))),y:Math.max(0,Math.floor(Math.min(active.a.y,active.b.y))),w:Math.min(fullWidth,Math.ceil(Math.max(active.a.x,active.b.x)))-Math.max(0,Math.floor(Math.min(active.a.x,active.b.x))),h:Math.min(fullHeight,Math.ceil(Math.max(active.a.y,active.b.y)))-Math.max(0,Math.floor(Math.min(active.a.y,active.b.y)))};$('cropConfirm').disabled=cropDraft.w<2||cropDraft.h<2;}renderMask()};
 paint.onpointerup=paint.onpointercancel=()=>{if(!drag)return;drag=false;if(active.kind==='crop'){active=null;renderMask();return}maskOps.push(active);active=null;setRoundtripEnabled(true);$('maskExport').disabled=false;$('maskVideoExport').disabled=false;renderMask()};
@@ -59,16 +59,50 @@ $('instruction').oninput=()=>{makePrompts();refreshChatText()};
 function alphaMask(){const c=document.createElement('canvas');c.width=frame.width;c.height=frame.height;const x=c.getContext('2d');for(const op of maskOps)draw(x,op,'#ff0000');return new Promise(resolve=>c.toBlob(resolve,'image/png'))}
 function blackWhiteMask(){return new Promise(resolve=>$('maskPreview').toBlob(resolve,'image/png'))}
 function setRoundtripEnabled(enabled){
- for(const id of ['copyMarked','saveMarked','copyGPT'])$(id).disabled=!enabled;
+ for(const id of ['copyMarked','saveMarked','copyGPT','savePair'])$(id).disabled=!enabled;
  if(!enabled){edited=null;$('download').disabled=true}
 }
 function markedCanvas(){
  const c=document.createElement('canvas');c.width=frame.width;c.height=frame.height;
  const x=c.getContext('2d');x.drawImage(frame,0,0);
- for(const op of maskOps)draw(x,op,'rgba(240,48,56,.86)');
+ for(const op of maskOps)draw(x,op,'rgba(240,48,56,.86)',true);
  return c;
 }
 function canvasBlob(c){return new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(Error('PNGを作成できません。')),'image/png'))}
+
+const DB_NAME='fix_retouch_preferences', STORE='settings', FOLDER_KEY='chatgpt_directory';
+let savedDirectory=null;
+function database(){return new Promise((resolve,reject)=>{const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)})}
+async function getSetting(key){const db=await database();return await new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readonly'),r=tx.objectStore(STORE).get(key);r.onsuccess=()=>{resolve(r.result);db.close()};r.onerror=()=>{reject(r.error);db.close()}})}
+async function putSetting(key,value){const db=await database();return await new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put(value,key);tx.oncomplete=()=>{db.close();resolve()};tx.onerror=()=>{db.close();reject(tx.error)}})}
+function folderLabel(name){$('saveFolderLabel').textContent='保存先: '+(name||'未選択（初回保存時に選択）')}
+async function chooseDirectory(){if(!window.showDirectoryPicker)throw new Error('このブラウザでは保存先の指定に対応していません。Chrome / Edgeを使ってください。');const dir=await window.showDirectoryPicker({id:'fix-retouch-chatgpt',mode:'readwrite'});savedDirectory=dir;await putSetting(FOLDER_KEY,dir);folderLabel(dir.name);return dir}
+async function getWritableDirectory(){
+ let dir=savedDirectory;
+ if(!dir)return await chooseDirectory();
+ let permission=await dir.queryPermission({mode:'readwrite'});
+ if(permission!=='granted')permission=await dir.requestPermission({mode:'readwrite'});
+ if(permission!=='granted')throw new Error('保存先への書き込みを許可してください。');
+ return dir
+}
+async function writePNG(dir,name,bytes){const handle=await dir.getFileHandle(name,{create:true}),writer=await handle.createWritable();try{await writer.write(bytes)}finally{await writer.close()}}
+async function saveChatPair(){
+ if(!cropReady||!maskOps.length)return status('トリミングと赤い印を先に確定してください。');
+ try{
+  // Choose the directory from a direct click before asynchronous image preparation.
+  const dir=await getWritableDirectory();
+  const original=await canvasBlob(frame),marked=await canvasBlob(markedCanvas());
+  const timestamp=format(currentTime).replace(':','-').replace('.','-');
+  const base='frame_'+timestamp;
+  await writePNG(dir,base+'_crop_original.png',original);
+  await writePNG(dir,base+'_crop_marked.png',marked);
+  status('2枚を「'+dir.name+'」に保存しました。元画像と赤印付き画像をChatGPTへ添付してください。');
+ }catch(error){if(error.name==='AbortError')return status('保存先の選択をキャンセルしました。');status('2枚の保存に失敗しました: '+error.message)}
+}
+$('savePair').onclick=saveChatPair;
+$('changeSaveFolder').onclick=async()=>{try{await chooseDirectory();status('保存先を変更しました。')}catch(e){if(e.name!=='AbortError')status('保存先を変更できません: '+e.message)}};
+(async()=>{try{savedDirectory=await getSetting(FOLDER_KEY);if(savedDirectory)folderLabel(savedDirectory.name)}catch(e){folderLabel(null)}})();
+
 function chatText(){
  const directive=editMode==='remove'?'赤い印で示した部分だけを消し、そこに本来見える背景を自然に復元してください。':'赤い印で示した部分だけを次の指示どおりに変更してください：'+$('instruction').value.trim();
  return '添付は元動画から切り出したトリミング画像です。赤い印は編集箇所を示すためのガイドです。\\n\\n'+directive+'\\n\\n赤い印そのものは完成画像に描かないでください。赤い印以外の場所の構図、色、明るさ、露出、コントラスト、影、遠近感、壁や床の質感を可能な限り保持してください。元動画全体ではなく、このトリミング画像と同じ構図の修正画像を1枚生成してください。文字や枠は追加せず、自然な写実画像として出力してください。';
